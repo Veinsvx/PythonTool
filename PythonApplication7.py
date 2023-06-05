@@ -1,4 +1,4 @@
-﻿import sys
+import sys
 from PyQt6 import QtCore, QtGui, QtWidgets
 from qt_material import apply_stylesheet
 from PyQt6.QtWidgets import  QWidget, QLabel, QMenu, QApplication, QSystemTrayIcon, QWidget
@@ -10,7 +10,7 @@ import base64
 import urllib
 import pyperclip
 import time
-import openai
+#import openai
 import keyboard
 
 
@@ -205,12 +205,35 @@ class TransSlovt(QtCore.QObject):
             self.show_ui_trans.setText("无法从剪贴板或OCR窗口获取获取数据")
             self.show_Form.show()
         else:
-            openai.api_key = openaikey
-            openai.api_base = openaiurl
-            response = openai.ChatCompletion.create(model="gpt-3.5-turbo",messages=[
-        {"role": "system", "content": "You are a helpful assistant."},
-        {"role": "user", "content": f"Translate the following English text to Chinese: \n {user_input}"}])
-            self.show_ui_trans.setText(response['choices'][0]['message']['content'])
+            url = "http://192.3.165.101:5214/translate"  # Flask应用的URL
+            data = {"text": f"{user_input}"}  # 你需要传递的数据
+            headers = {'Content-type': 'application/json', 'Accept': 'text/plain'}
+
+            response = requests.post(url, data=json.dumps(data), headers=headers)
+
+            # 获取响应的JSON数据并打印
+            json_response = response.json()
+
+  # 我把openai的连接放到了服务器上，这边暂时先弃用。
+  #
+  #          openai.api_key = openaikey
+  #          openai.api_base = openaiurl
+  #      #    response = openai.ChatCompletion.create(model="gpt-3.5-turbo",messages=[
+  #      #{"role": "system", "content": "You are a helpful assistant."},
+  #      #{"role": "user", "content": f"Translate the following English text to Chinese: \n {user_input}"}])
+
+  #          response = openai.Completion.create(
+  #model="text-davinci-003",
+  #prompt=f"Translate the following English text to Chinese: \n {user_input}",
+  #temperature=0.1,
+  #max_tokens=1200,
+  #top_p=1,
+  #frequency_penalty=0,
+  #presence_penalty=0
+#)
+            #self.show_ui_trans.setText(response['choices'][0]['message']['content'])#这是使用chat模式的json格式。
+            #self.show_ui_trans.setText(response['choices'][0]['text'])
+            self.show_ui_trans.setText(json_response['result'])
             self.show_Form.show()
             
 class HotkeySignal(QtCore.QObject):
