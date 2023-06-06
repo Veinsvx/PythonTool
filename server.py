@@ -44,7 +44,7 @@ def process_text_2():
 
 
 def tag_verbs_or_adverbs(text):
-    nlp =spacy.load("en_core_web_sm", disable=["ner"])
+    #nlp =spacy.load("en_core_web_sm", disable=["ner"])
     doc = nlp(text)
 
     tagged_text = ""
@@ -59,17 +59,22 @@ def tag_verbs_or_adverbs(text):
 
 
 def openai_transmation(text):
-    openai.api_key = "sk-9bSXmFB4kZN5wKKKbW3ibG5ptJTdqcFzvDbfatQavLOj4IUO"
-    openai.api_base = 'https://api.chatanywhere.cn/v1'
-    trans_response = openai.ChatCompletion.create(model="gpt-3.5-turbo",messages=[
-        {"role": "system", "content": "You are a helpful assistant."},
-        {"role": "user", "content": f"Translate the following English text to Chinese: \n {text}"}])
+    openai.api_key = ""
+    openai.api_base = ''
+    #替换成性能更强的达芬奇
+    #trans_response = openai.ChatCompletion.create(model="gpt-3.5-turbo",messages=[
+    #    {"role": "system", "content": "You are a helpful assistant."},
+    #    {"role": "user", "content": f"Translate the following English text to Chinese: \n {text}"}])
+    
+    response = openai.Completion.create(model="text-davinci-003",prompt=f"Translate the following English text to Chinese: \n {text}",temperature=0.1,max_tokens=1200,top_p=1,frequency_penalty=0,presence_penalty=0)
 
-    return trans_response['choices'][0]['message']['content']
+    #return trans_response['choices'][0]['message']['content']
+    return response['choices'][0]['text']
 
 
 
 
 if __name__ == '__main__':
+    nlp = spacy.load("en_core_web_sm", disable=["ner"])
     app.run(host='0.0.0.0', port=5214)
 
