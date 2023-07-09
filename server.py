@@ -2,6 +2,17 @@ from flask import Flask, request, jsonify,render_template
 import spacy
 from flask_cors import CORS
 import openai
+import concurrent.futures
+import re
+
+openai.api_base = ''
+openai.api_key = ''
+
+SystemPrompt = "You are a translation engine, you can only translate text and cannot interpret it, and do not explain."
+Prompt = '''Translate the text to {to}, please do not explain any sentences, just translate or leave them as they are.: {text}'''
+
+nlp = spacy.load("en_core_web_trf")
+
 
 
 app = Flask(__name__)
@@ -11,31 +22,47 @@ CORS(app)
 def home():
     return render_template('index.html')
 
-
-
 @app.route('/process-text', methods=['POST'])
 def process_text():
     data = request.get_json()
     text = data.get('text')  
 
-    
     processed_text = tag_verbs_or_adverbs(text)
 
-    
     response = {'result': processed_text}
     return jsonify(response)
 
-
-@app.route('/translate', methods=['POST'])
-def process_text_2():
-    data = request.get_json()
-    text = data.get('text')  
-
+@app.route('/generate', methods=['POST'])
+def generate():
+    rsp = request.get_json()
     
-    processed_text = openai_transmation(text)  
+    MuBiaoYuYan_content = []
+    YaoZhuanHuanDeWenBen_content = []
 
+    for message in rsp['messages']:
+        if message['role'] == 'system':
+            MuBiaoYuYan_content.append(message['content'])
+        elif message['role'] == 'user':
+            YaoZhuanHuanDeWenBen_content.append(message['content'])
     
-    response = {'result': processed_text}
+    
+    
+    userModel=rsp.get('model',"gpt-4-0613")
+    YaoZhuanHuanDeWenBen_content[0]=re.sub('< /b[0-9]+ >|< b[0-9]+ >', '', YaoZhuanHuanDeWenBen_content[0])
+    
+    
+      
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        future1 = executor.submit(tag_verbs_or_adverbs, YaoZhuanHuanDeWenBen_content[0])
+        future2 = executor.submit(openai.ChatCompletion.create, model=userModel, messages=[
+            {"role": "system", "content": SystemPrompt},
+            {"role": "user", "content": Prompt.format(to="chinese", text=YaoZhuanHuanDeWenBen_content[0])}
+        ])
+
+        modified_prompt = future1.result()
+        response = future2.result()
+
+    response['choices'][0]['message']['content'] = modified_prompt + ' \n ' + '<span class="transparent-text" style="opacity: 0.1;">'+response['choices'][0]['message']['content'].strip()+'</span>'
     return jsonify(response)
 
 
@@ -44,37 +71,16 @@ def process_text_2():
 
 
 def tag_verbs_or_adverbs(text):
-    #nlp =spacy.load("en_core_web_sm", disable=["ner"])
     doc = nlp(text)
 
     tagged_text = ""
     for token in doc:
-        #print(f"{token.text:<15} {token.dep_:<10} {token.head.text:<15}")
         if (token.dep_ == "ROOT" or token.dep_ == "auxpass"or token.dep_ == "relcl"or token.dep_ == "xcomp"or token.dep_ == "acl"or token.dep_ == "aux"or token.dep_ == "cop")and (token.text!="to")or((token.dep_ =="pcomp"or token.dep_ =="pobj"or token.dep_ =="conj"or token.dep_ == "ccomp")and (token.pos_=="VERB"or token.pos_=="AUX")or(token.text!="in" and token.dep_ == "advcl")):
-            tagged_text += f'<font color="red">{token.text}</font> '
+            tagged_text += f'<span style="color: red;">{token.text}</span> '
         else:
             tagged_text += f"{token.text} "
 
     return tagged_text.strip()
 
-
-def openai_transmation(text):
-    openai.api_key = ""
-    openai.api_base = ''
-    #替换成性能更强的达芬奇
-    #trans_response = openai.ChatCompletion.create(model="gpt-3.5-turbo",messages=[
-    #    {"role": "system", "content": "You are a helpful assistant."},
-    #    {"role": "user", "content": f"Translate the following English text to Chinese: \n {text}"}])
-    
-    response = openai.Completion.create(model="text-davinci-003",prompt=f"Translate the following English text to Chinese: \n {text}",temperature=0.1,max_tokens=1200,top_p=1,frequency_penalty=0,presence_penalty=0)
-
-    #return trans_response['choices'][0]['message']['content']
-    return response['choices'][0]['text']
-
-
-
-
 if __name__ == '__main__':
-    nlp = spacy.load("en_core_web_sm", disable=["ner"])
     app.run(host='0.0.0.0', port=5214)
-
