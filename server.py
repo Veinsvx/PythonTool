@@ -1,56 +1,59 @@
-from flask import Flask, request, jsonify,render_template
 import spacy
+from flask import Flask, request, jsonify,render_template
 from flask_cors import CORS
 import openai
 import concurrent.futures
 import re
+import requests
 
-openai.api_base = ''
-openai.api_key = ''
-
-SystemPrompt = "You are a translation engine, you can only translate text and cannot interpret it, and do not explain."
+SystemPrompt = "You are a great translation engine, you can only translate text and cannot interpret it, and do not explain."
 Prompt = '''Translate the text to {to}, please do not explain any sentences, just translate or leave them as they are.: {text}'''
 
+
 nlp = spacy.load("en_core_web_trf")
-
-
-
 app = Flask(__name__)
 CORS(app) 
+
+#app = Flask(__name__)
+#CORS(app) 
 
 @app.route('/', methods=['GET'])
 def home():
     return render_template('index.html')
 
-@app.route('/process-text', methods=['POST'])
-def process_text():
-    data = request.get_json()
-    text = data.get('text')  
-
-    processed_text = tag_verbs_or_adverbs(text)
-
-    response = {'result': processed_text}
-    return jsonify(response)
-
 @app.route('/generate', methods=['POST'])
 def generate():
     rsp = request.get_json()
     
-    MuBiaoYuYan_content = []
+    auth_header = request.headers.get('Authorization')
+    if auth_header and auth_header.startswith('Bearer '):
+        api_key = auth_header[7:]
+        openai.api_key=api_key
+    else:
+        openai.api_key = 'sk-UZgUvlLyygKM4x9r7a295e9fA2F64847B328798803DbE4Fd'
+    
+    
     YaoZhuanHuanDeWenBen_content = []
 
     for message in rsp['messages']:
         if message['role'] == 'system':
-            MuBiaoYuYan_content.append(message['content'])
+            if message['content']!="":
+                openai.api_base=message['content']
+            else:
+                openai.api_base="https://fast.xeduapi.com/v1"
         elif message['role'] == 'user':
             YaoZhuanHuanDeWenBen_content.append(message['content'])
     
+    userModel=rsp.get('model',"gpt-3.5-turbo")
+    YaoZhuanHuanDeWenBen_content[0]=re.sub('< *(/)?b *[0-9]+ *>', '', YaoZhuanHuanDeWenBen_content[0])
     
+    if userModel == "gpt-4":
+        openai.api_base="https://api.naga.ac/v1"
+        openai.api_key="XeHMx3t60gTx3tgTcRX6m_mkWfoHQa6_ZA3H6xIE_cI"
     
-    userModel=rsp.get('model',"gpt-4-0613")
-    YaoZhuanHuanDeWenBen_content[0]=re.sub('< /b[0-9]+ >|< b[0-9]+ >', '', YaoZhuanHuanDeWenBen_content[0])
-    
-    
+    #print(openai.api_base)
+    #print(openai.api_key)
+    #print(userModel)
       
     with concurrent.futures.ThreadPoolExecutor() as executor:
         future1 = executor.submit(tag_verbs_or_adverbs, YaoZhuanHuanDeWenBen_content[0])
@@ -66,8 +69,13 @@ def generate():
     return jsonify(response)
 
 
-
-
+#def tag_verbs_or_adverbs(text):
+#    response = requests.post("http://192.3.165.101:8246/tag_text", json={"text": text})
+#    if response.status_code == 200:
+#        tagged_text = response.json()["tagged_text"]
+#        return tagged_text.strip()
+#    else:
+#        return text
 
 
 def tag_verbs_or_adverbs(text):
@@ -81,6 +89,7 @@ def tag_verbs_or_adverbs(text):
             tagged_text += f"{token.text} "
 
     return tagged_text.strip()
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5214)
